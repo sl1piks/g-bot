@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#408d3d">
+    <title>G • Профит</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Защита от прямого доступа через браузер -->
+    <script type="text/javascript">
+        // Проверяем, открыто ли приложение через Telegram WebApp
+        function checkTelegramWebApp() {
+            if (!window.Telegram || !window.Telegram.WebApp) {
+                // Добавляем параметр для локального тестирования
+                const urlParams = new URLSearchParams(window.location.search);
+                const allowDirect = urlParams.get('allow_direct') === 'true';
+                
+                // Если это не Telegram WebApp и нет параметра allow_direct=true
+                if (!allowDirect) {
+                    document.body.innerHTML = '<div class="access-denied">' +
+                        '<i class="fas fa-lock"></i>' +
+                        '<h1>Доступ запрещен</h1>' +
+                        '<p>Этот сайт доступен только через Telegram WebApp.</p>' +
+                        '<p>Пожалуйста, откройте через бота @G_Profit_bot в Telegram.</p>' +
+                        '</div>';
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Запускаем проверку при загрузке страницы
+        window.onload = function() {
+            checkTelegramWebApp();
+        };
+    </script>
+</head>
+<body>
+    <!-- Загрузочный экран -->
+    <div class="loader-container">
+        <div class="profit-loader">
+            <i class="fas fa-money-bill-wave"></i>
+            <i class="fas fa-chart-line"></i>
+            <i class="fas fa-coins"></i>
+            <i class="fas fa-wallet"></i>
+            <div class="profit-circle"></div>
+        </div>
+        <div class="loader-text">G • Профит</div>
+        <div class="loader-progress">
+            <div class="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- Основной контент сайта -->
+    <header>
+        <nav>
+            <div class="logo">
+                <i class="fas fa-coins"></i>
+                <span>G • Профит</span>
+            </div>
+            <ul class="menu">
+                <div class="menu-close"><i class="fas fa-times"></i></div>
+                <li><a href="#" class="active"><i class="fas fa-coins"></i> Профиты</a></li>
+                <li><a href="#"><i class="fas fa-chart-line"></i> Статистика</a></li>
+                <li><a href="#"><i class="fas fa-users"></i> Воркеры</a></li>
+                <li class="admin-only"><a href="#"><i class="fas fa-cog"></i> Администрирование</a></li>
+            </ul>
+            <div class="menu-toggle">
+                <i class="fas fa-bars"></i>
+            </div>
+            <div class="user-profile">
+                <div class="user-avatar">
+                    <img src="https://via.placeholder.com/36" alt="Аватар" id="user-avatar">
+                </div>
+                <span id="user-name">Загрузка...</span>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="hero-background">
+                <div class="animated-blob blob-1"></div>
+                <div class="animated-blob blob-2"></div>
+                <div class="animated-blob blob-3"></div>
+            </div>
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="badge-emoji">🚀</span>
+                    <span>Новое поколение</span>
+                </div>
+                <h1>Добро пожаловать в <span class="highlight">G • Профит</span></h1>
+                <p>Отслеживайте все успехи команды в реальном времени с современными инструментами аналитики</p>
+                <div class="hero-buttons">
+                    <button class="btn-primary" id="refresh-btn">
+                        <span class="btn-icon">🔄</span>
+                        <span>Обновить данные</span>
+                    </button>
+                    <button class="btn-add-profit admin-only" id="add-profit-btn">
+                        <span class="btn-icon">✨</span>
+                        <span>Добавить профит</span>
+                    </button>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat-badge">
+                        <span class="stat-number">24/7</span>
+                        <span class="stat-label">Мониторинг</span>
+                    </div>
+                    <div class="stat-badge">
+                        <span class="stat-number">100%</span>
+                        <span class="stat-label">Точность</span>
+                    </div>
+                    <div class="stat-badge">
+                        <span class="stat-number">∞</span>
+                        <span class="stat-label">Возможности</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-image">
+                <div class="floating-icon icon-1">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <div class="floating-icon icon-2">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="floating-icon icon-3">
+                    <i class="fas fa-coins"></i>
+                </div>
+                <div class="hero-particles">
+                    <div class="particle particle-1"></div>
+                    <div class="particle particle-2"></div>
+                    <div class="particle particle-3"></div>
+                    <div class="particle particle-4"></div>
+                    <div class="particle particle-5"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Модальное окно для добавления профита (видно только админам) -->
+        <div class="modal-overlay" id="add-profit-modal">
+            <div class="modal-container">
+                <div class="modal-header">
+                    <h3>Добавить новый профит</h3>
+                    <button class="close-modal"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-profit-form">
+                        <div class="form-group">
+                            <label for="deposit-amount">💰 Сумма депа (₽)</label>
+                            <input type="text" id="deposit-amount" required placeholder="123.456,789">
+                            <small class="input-hint">Пример: 15.000 или 1.234.567,89</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="worker-percent">🛍 Процент воркера (%)</label>
+                            <input type="number" id="worker-percent" required min="1" max="100" value="70" placeholder="70">
+                            <small class="input-hint">От 1 до 100 процентов</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="service-select">💻 Сервис</label>
+                            <select id="service-select" required>
+                                <option value="">Выберите сервис</option>
+                                <option value="MarketPlace">MarketPlace</option>
+                                <option value="BankApp">BankApp</option>
+                                <option value="CryptoEx">CryptoEx</option>
+                                <option value="WalletPay">WalletPay</option>
+                                <option value="FiatGate">FiatGate</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="worker-username">👼 Воркер (username)</label>
+                            <input type="text" id="worker-username" required placeholder="username">
+                            <small class="input-hint">Без символа @, просто имя пользователя</small>
+                            <div class="telegram-worker-status" id="telegram-worker-status"></div>
+                        </div>
+                        <button type="submit" class="btn-submit">
+                            <span>Добавить профит</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <section class="profit-stats">
+            <h2>Статистика профитов</h2>
+            <div class="stats-summary">
+                <div class="stat-item">
+                    <i class="fas fa-coins"></i>
+                    <h3>Общая касса</h3>
+                    <p class="counter" data-target="0">0</p>
+                    <span>₽</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-users"></i>
+                    <h3>Активных воркеров</h3>
+                    <p class="counter" data-target="0">0</p>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-trophy"></i>
+                    <h3>Успешных профитов</h3>
+                    <p class="counter" data-target="0">0</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Раздел профитов -->
+        <section class="profit-cards" id="profits-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <h2>Последние успешные профиты</h2>
+                    <div class="title-decoration"></div>
+                </div>
+                <div class="section-filters">
+                    <button class="filter-btn active" data-filter="all">
+                        <span class="filter-emoji">🌟</span>
+                        Все
+                    </button>
+                    <button class="filter-btn" data-filter="today">
+                        <span class="filter-emoji">📅</span>
+                        Сегодня
+                    </button>
+                    <button class="filter-btn" data-filter="top">
+                        <span class="filter-emoji">🏆</span>
+                        Топ
+                    </button>
+                </div>
+            </div>
+            <div class="profit-container">
+                <!-- Карточки профитов будут добавлены через JavaScript -->
+            </div>
+            <button class="btn-load-more" id="loadMoreBtn">
+                <span class="btn-text">
+                    <span class="load-icon">⚡</span>
+                    Загрузить еще
+                </span>
+                <span class="loading-text">
+                    <span class="loading-spinner"></span>
+                    Загружаем...
+                </span>
+            </button>
+        </section>
+
+        <!-- Раздел статистики -->
+        <section class="statistics-section" id="statistics-section" style="display: none;">
+            <div class="section-header">
+                <div class="section-title">
+                    <h2>Детальная статистика проекта</h2>
+                    <div class="title-decoration"></div>
+                </div>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Общая касса</h3>
+                        <p class="stat-value" id="total-amount-detailed">0 ₽</p>
+                        <span class="stat-change">+0 ₽ за сегодня</span>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Всего профитов</h3>
+                        <p class="stat-value" id="total-profits-detailed">0</p>
+                        <span class="stat-change">+0 за сегодня</span>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Активных воркеров</h3>
+                        <p class="stat-value" id="active-workers-detailed">0</p>
+                        <span class="stat-change">Зарегистрированных в боте</span>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>Средний профит</h3>
+                        <p class="stat-value" id="average-profit">0 ₽</p>
+                        <span class="stat-change">За все время</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-card">
+                    <h3>📊 Статистика по сервисам</h3>
+                    <div class="services-stats" id="services-stats">
+                        <!-- Будет заполнено через JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Раздел воркеров -->
+        <section class="workers-section" id="workers-section" style="display: none;">
+            <div class="section-header">
+                <div class="section-title">
+                    <h2>Список воркеров</h2>
+                    <div class="title-decoration"></div>
+                </div>
+            </div>
+            
+            <div class="workers-container">
+                <!-- Карточки воркеров будут добавлены через JavaScript -->
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo">
+                <i class="fas fa-coins"></i>
+                <span>Profit Dashboard</span>
+            </div>
+            <div class="footer-links">
+                <h4>Ссылки</h4>
+                <ul>
+                    <li><a href="#">Главная</a></li>
+                    <li><a href="#">Статистика</a></li>
+                    <li><a href="#">Топ воркеров</a></li>
+                    <li><a href="#">Инструменты</a></li>
+                </ul>
+            </div>
+            <div class="footer-social">
+                <h4>Связь с нами</h4>
+                <div class="social-icons">
+                    <a href="#"><i class="fab fa-telegram"></i></a>
+                    <a href="#"><i class="fab fa-discord"></i></a>
+                    <a href="#"><i class="fas fa-envelope"></i></a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 Profit Dashboard. Все права защищены.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
