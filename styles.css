@@ -819,6 +819,118 @@ nav {
     box-shadow: 0 12px 30px rgba(40, 167, 69, 0.4);
 }
 
+/* Кнопка обновления базы данных */
+.btn-refresh-db {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: white;
+    box-shadow: 0 8px 25px rgba(108, 92, 231, 0.3);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-refresh-db:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(108, 92, 231, 0.4);
+    background: linear-gradient(135deg, #5f4bdb, #9c88ff);
+}
+
+.btn-refresh-db:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+}
+
+/* Анимированная иконка обновления */
+.refresh-icon {
+    transition: transform 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.btn-refresh-db:hover .refresh-icon {
+    transform: rotate(360deg);
+}
+
+.btn-refresh-db:active .refresh-icon {
+    animation: refreshSpin 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes refreshSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(720deg); }
+}
+
+.btn-refresh-db:disabled {
+    cursor: not-allowed;
+    opacity: 0.7 !important;
+    transform: none !important;
+}
+
+.btn-refresh-db:disabled:hover {
+    transform: none !important;
+    box-shadow: 0 8px 25px rgba(108, 92, 231, 0.3) !important;
+}
+
+/* Красивый спиннер загрузки */
+.loading-spinner {
+    display: inline-block;
+    position: relative;
+    width: 80px;
+    height: 80px;
+}
+
+.spinner-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 64px;
+    height: 64px;
+    margin: -32px 0 0 -32px;
+    border: 4px solid transparent;
+    border-radius: 50%;
+    animation: spinnerRotate 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.spinner-ring:nth-child(1) {
+    border-top-color: var(--color-primary);
+    animation-delay: -0.45s;
+    width: 64px;
+    height: 64px;
+    margin: -32px 0 0 -32px;
+}
+
+.spinner-ring:nth-child(2) {
+    border-top-color: var(--color-secondary);
+    animation-delay: -0.3s;
+    width: 48px;
+    height: 48px;
+    margin: -24px 0 0 -24px;
+}
+
+.spinner-ring:nth-child(3) {
+    border-top-color: #6c5ce7;
+    animation-delay: -0.15s;
+    width: 32px;
+    height: 32px;
+    margin: -16px 0 0 -16px;
+}
+
+@keyframes spinnerRotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
 .btn-icon {
     font-size: 1.2em;
     animation: iconSpin 2s ease-in-out infinite;
@@ -4474,6 +4586,10 @@ footer a:hover {
     gap: 2rem;
 }
 
+#db-schema-view {
+    transition: all 0.3s ease;
+}
+
 .db-tables-container,
 .db-stats-container {
     background: white;
@@ -4505,14 +4621,53 @@ footer a:hover {
     padding: 1.5rem;
     margin-bottom: 1rem;
     border-left: 4px solid var(--color-primary);
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInUp 0.6s ease forwards;
+}
+
+.db-table-item:nth-child(1) { animation-delay: 0.1s; }
+.db-table-item:nth-child(2) { animation-delay: 0.2s; }
+.db-table-item:nth-child(3) { animation-delay: 0.3s; }
+.db-table-item:nth-child(4) { animation-delay: 0.4s; }
+.db-table-item:nth-child(5) { animation-delay: 0.5s; }
+
+.db-table-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    transition: left 0.5s;
+}
+
+.db-table-item:hover::before {
+    left: 100%;
 }
 
 .db-table-item:hover {
-    transform: translateX(5px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    background: #f0f2ff;
+    transform: translateX(8px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    background: linear-gradient(135deg, #f0f2ff, #e8ebff);
+    border-left-color: var(--color-secondary);
+}
+
+.db-table-item:active {
+    transform: translateX(5px) scale(0.98);
+    transition: all 0.1s ease;
+}
+
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .db-table-name {
@@ -4523,6 +4678,11 @@ footer a:hover {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    transition: color 0.3s ease;
+}
+
+.db-table-item:hover .db-table-name {
+    color: var(--color-primary);
 }
 
 .db-table-info {
@@ -4538,6 +4698,31 @@ footer a:hover {
     background: white;
     border-radius: 8px;
     border: 1px solid #e0e0e0;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.db-info-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, transparent 49%, rgba(83, 197, 101, 0.1) 50%, transparent 51%);
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+}
+
+.db-table-item:hover .db-info-item::before {
+    transform: translateX(100%);
+}
+
+.db-table-item:hover .db-info-item {
+    background: #f8fff8;
+    border-color: var(--color-primary-light);
+    transform: translateY(-2px);
 }
 
 .db-info-value {
@@ -4545,12 +4730,23 @@ footer a:hover {
     font-size: 1.2rem;
     color: var(--color-primary);
     display: block;
+    transition: all 0.3s ease;
+}
+
+.db-table-item:hover .db-info-value {
+    transform: scale(1.1);
+    color: var(--color-primary-dark);
 }
 
 .db-info-label {
     font-size: 0.8rem;
     color: #666;
     margin-top: 0.25rem;
+    transition: color 0.3s ease;
+}
+
+.db-table-item:hover .db-info-label {
+    color: var(--color-primary);
 }
 
 /* Консоль логов */
@@ -4815,6 +5011,19 @@ footer a:hover {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    opacity: 0;
+    animation: tableSlideIn 0.6s ease forwards;
+}
+
+@keyframes tableSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .data-table th {
@@ -4826,16 +5035,45 @@ footer a:hover {
     position: sticky;
     top: 0;
     z-index: 10;
+    transition: background 0.3s ease;
+}
+
+.data-table th:hover {
+    background: #e9ecef;
 }
 
 .data-table td {
     padding: 0.75rem 1rem;
     border-bottom: 1px solid #e9ecef;
     vertical-align: top;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.data-table tbody tr {
+    opacity: 0;
+    transform: translateX(-20px);
+    animation: rowSlideIn 0.4s ease forwards;
+}
+
+.data-table tbody tr:nth-child(1) { animation-delay: 0.1s; }
+.data-table tbody tr:nth-child(2) { animation-delay: 0.15s; }
+.data-table tbody tr:nth-child(3) { animation-delay: 0.2s; }
+.data-table tbody tr:nth-child(4) { animation-delay: 0.25s; }
+.data-table tbody tr:nth-child(5) { animation-delay: 0.3s; }
+.data-table tbody tr:nth-child(n+6) { animation-delay: 0.35s; }
+
+@keyframes rowSlideIn {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 .data-table tbody tr:hover {
-    background: #f8f9ff;
+    background: linear-gradient(135deg, #f8f9ff, #f0f4ff);
+    transform: scale(1.01);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .table-pagination {

@@ -3566,7 +3566,16 @@ async function showTableData(tableName) {
         
         // Показываем индикатор загрузки
         const container = document.getElementById('db-schema-view');
-        container.innerHTML = '<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Загрузка данных таблицы...</div>';
+        container.innerHTML = `
+            <div style="text-align: center; padding: 4rem 2rem;">
+                <div class="loading-spinner">
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                </div>
+                <p style="margin-top: 1rem; color: #666;">Загрузка данных таблицы ${tableName}...</p>
+            </div>
+        `;
         
         const response = await fetch(`http://127.0.0.1:5000/api/admin/database/table/${tableName}`);
         if (!response.ok) {
@@ -3871,8 +3880,39 @@ function clearLogs() {
 
 // Обработчики для кнопок базы данных
 document.getElementById('refresh-db-view')?.addEventListener('click', () => {
+    const button = document.getElementById('refresh-db-view');
+    const icon = button.querySelector('.refresh-icon');
+    
+    // Добавляем анимацию к иконке
+    icon.style.animation = 'refreshSpin 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+    
+    // Блокируем кнопку на время обновления
+    button.disabled = true;
+    button.style.opacity = '0.7';
+    
     addLog('info', 'Обновление схемы базы данных...');
-    loadDatabaseSchema();
+    
+    // Анимированное обновление схемы
+    const container = document.getElementById('db-schema-view');
+    container.style.opacity = '0.5';
+    container.style.transform = 'scale(0.95)';
+    
+    setTimeout(() => {
+        loadDatabaseSchema().then(() => {
+            // Восстанавливаем кнопку
+            button.disabled = false;
+            button.style.opacity = '1';
+            
+            // Анимируем появление контента
+            container.style.opacity = '1';
+            container.style.transform = 'scale(1)';
+            
+            // Убираем анимацию иконки
+            setTimeout(() => {
+                icon.style.animation = '';
+            }, 800);
+        });
+    }, 300);
 });
 
 document.getElementById('export-db')?.addEventListener('click', () => {
