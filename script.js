@@ -3514,7 +3514,7 @@ function displayDatabaseSchema(schema) {
     }
     
     const tablesHTML = schema.tables.map(table => `
-        <div class="db-table-item">
+        <div class="db-table-item" onclick="showTableData('${table.name}')">
             <div class="db-table-name">
                 📊 ${table.name}
             </div>
@@ -3556,6 +3556,133 @@ async function loadTableStats() {
         console.error('Ошибка загрузки статистики БД:', error);
         document.getElementById('db-table-stats').innerHTML = '<p style="color: red;">Ошибка загрузки статистики</p>';
     }
+}
+
+// Отображение данных конкретной таблицы
+async function showTableData(tableName) {
+    try {
+        // Логируем действие
+        addLog('info', `Открытие таблицы: ${tableName}`);
+        
+        // Показываем индикатор загрузки
+        const container = document.getElementById('db-schema-view');
+        container.innerHTML = '<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Загрузка данных таблицы...</div>';
+        
+        const response = await fetch(`http://127.0.0.1:5000/api/admin/database/table/${tableName}`);
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке данных таблицы');
+        }
+        
+        const tableData = await response.json();
+        displayTableData(tableData);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки данных таблицы:', error);
+        document.getElementById('db-schema-view').innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: red;">
+                <i class="fas fa-exclamation-triangle"></i> Ошибка загрузки данных таблицы
+                <br><small>${error.message}</small>
+                <br><button onclick="loadDatabaseSchema()" class="btn-primary" style="margin-top: 1rem;">
+                    <i class="fas fa-arrow-left"></i> Вернуться к схеме
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Отображение данных таблицы
+function displayTableData(tableData) {
+    const container = document.getElementById('db-schema-view');
+    
+    if (!tableData.data || tableData.data.length === 0) {
+        container.innerHTML = `
+            <div class="table-view-container">
+                <div class="table-view-header">
+                    <h3>📊 ${tableData.table_name}</h3>
+                    <button onclick="loadDatabaseSchema()" class="btn-primary">
+                        <i class="fas fa-arrow-left"></i> Вернуться к схеме
+                    </button>
+                </div>
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-inbox"></i> Таблица пустая
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Создаем HTML для таблицы
+    const tableHTML = `
+        <div class="table-view-container">
+            <div class="table-view-header">
+                <div>
+                    <h3>📊 ${tableData.table_name}</h3>
+                    <p class="table-info">Показано ${tableData.data.length} из ${tableData.total_rows} записей</p>
+                </div>
+                <div class="table-actions">
+                    <button onclick="loadDatabaseSchema()" class="btn-primary">
+                        <i class="fas fa-arrow-left"></i> Вернуться к схеме
+                    </button>
+                    <button onclick="showTableData('${tableData.table_name}')" class="btn-secondary">
+                        <i class="fas fa-sync-alt"></i> Обновить
+                    </button>
+                </div>
+            </div>
+            
+            <div class="table-view-content">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            ${tableData.columns.map(col => `<th>${col}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableData.data.map(row => `
+                            <tr>
+                                ${tableData.columns.map(col => `<td>${formatCellValue(row[col])}</td>`).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            
+            ${tableData.total_rows > tableData.limit ? `
+                <div class="table-pagination">
+                    <p>Показаны первые ${tableData.limit} записей из ${tableData.total_rows}</p>
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    container.innerHTML = tableHTML;
+}
+
+// Форматирование значений ячеек таблицы
+function formatCellValue(value) {
+    if (value === null || value === undefined) {
+        return '<span style="color: #999; font-style: italic;">NULL</span>';
+    }
+    
+    if (typeof value === 'string' && value.length > 50) {
+        return `<span title="${value}">${value.substring(0, 50)}...</span>`;
+    }
+    
+    // Если это дата, форматируем её
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+        try {
+            const date = new Date(value);
+            return date.toLocaleString('ru-RU');
+        } catch (e) {
+            return value;
+        }
+    }
+    
+    // Если это число, форматируем с разделителями
+    if (typeof value === 'number' && value > 1000) {
+        return formatNumber(value);
+    }
+    
+    return value;
 }
 
 // Отображение статистики таблиц
