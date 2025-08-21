@@ -21,30 +21,16 @@ let projectStats = {
 // Кеш пользователей Telegram (username -> user data)
 let telegramUsersCache = new Map();
 
-// Функция для получения данных пользователя через Telegram WebApp
-function getTelegramUserData(username) {
+// Функция для получения данных текущего пользователя через Telegram WebApp
+function getCurrentTelegramUserData() {
     return new Promise((resolve, reject) => {
-        // Проверяем кеш
-        if (telegramUsersCache.has(username)) {
-            resolve(telegramUsersCache.get(username));
-            return;
-        }
-
-        // Если WebApp не доступен, возвращаем базовые данные
+        // Если WebApp не доступен, возвращаем null
         if (!tg || !tg.initData) {
-            const basicData = {
-                id: null,
-                first_name: username,
-                last_name: '',
-                username: username,
-                source: 'fallback'
-            };
-            telegramUsersCache.set(username, basicData);
-            resolve(basicData);
+            resolve(null);
             return;
         }
 
-        // Парсим initData для получения информации о пользователе
+        // Парсим initData для получения информации о текущем пользователе
         try {
             const initData = tg.initData;
             const params = new URLSearchParams(initData);
@@ -53,44 +39,57 @@ function getTelegramUserData(username) {
             if (userParam) {
                 const currentUser = JSON.parse(decodeURIComponent(userParam));
                 
-                // Если это тот же пользователь, которого мы ищем
-                if (currentUser.username === username) {
-                    const userData = {
-                        id: currentUser.id,
-                        first_name: currentUser.first_name || username,
-                        last_name: currentUser.last_name || '',
-                        username: currentUser.username || username,
-                        source: 'telegram_webapp'
-                    };
-                    telegramUsersCache.set(username, userData);
-                    resolve(userData);
-                    return;
-                }
+                const userData = {
+                    id: currentUser.id,
+                    first_name: currentUser.first_name || '',
+                    last_name: currentUser.last_name || '',
+                    username: currentUser.username || '',
+                    source: 'telegram_webapp'
+                };
+                
+                resolve(userData);
+                return;
             }
 
-            // Если не удалось найти пользователя в WebApp данных, возвращаем базовую информацию
-            const fallbackData = {
-                id: null,
-                first_name: username,
-                last_name: '',
-                username: username,
-                source: 'webapp_fallback'
-            };
-            telegramUsersCache.set(username, fallbackData);
-            resolve(fallbackData);
+            // Если не удалось получить данные пользователя
+            resolve(null);
 
         } catch (error) {
             console.warn('Ошибка при парсинге Telegram WebApp данных:', error);
-            const errorData = {
-                id: null,
-                first_name: username,
-                last_name: '',
-                username: username,
-                source: 'error_fallback'
-            };
-            telegramUsersCache.set(username, errorData);
-            resolve(errorData);
+            resolve(null);
         }
+    });
+}
+
+// Функция для получения данных пользователя по username (проверка через WebApp или базовые данные)
+function getTelegramUserData(username) {
+    return new Promise(async (resolve, reject) => {
+        // Проверяем кеш
+        if (telegramUsersCache.has(username)) {
+            resolve(telegramUsersCache.get(username));
+            return;
+        }
+
+        // Получаем данные текущего пользователя WebApp
+        const currentUserData = await getCurrentTelegramUserData();
+        
+        // Если введённый username совпадает с текущим пользователем WebApp
+        if (currentUserData && currentUserData.username === username) {
+            telegramUsersCache.set(username, currentUserData);
+            resolve(currentUserData);
+            return;
+        }
+
+        // Если это не текущий пользователь, возвращаем базовые данные
+        const fallbackData = {
+            id: null,
+            first_name: username, // Используем username как имя
+            last_name: '',
+            username: username,
+            source: 'fallback'
+        };
+        telegramUsersCache.set(username, fallbackData);
+        resolve(fallbackData);
     });
 }
 
@@ -276,20 +275,8 @@ function adaptToTelegramWindow() {
         // Скрываем кнопку "Назад" если она не нужна
         tg.BackButton.hide();
         
-        // Показываем главную кнопку если пользователь админ
-        if (isAdmin) {
-            tg.MainButton.setText('Добавить профит');
-            tg.MainButton.color = '#ffc107';
-            tg.MainButton.textColor = '#ffffff';
-            tg.MainButton.show();
-            
-            tg.MainButton.onClick(() => {
-                const modal = document.getElementById('add-profit-modal');
-                if (modal) {
-                    modal.classList.add('active');
-                }
-            });
-        }
+        // Скрываем главную кнопку Telegram (используем кнопки внутри интерфейса)
+        tg.MainButton.hide();
     }
 }
 
@@ -382,6 +369,43 @@ function initButtonHandlers() {
 }
 
 // Инициализация Telegram WebApp
+// Функция для автоматического сохранения текущего пользователя в базу данных
+async function saveCurrentUserToDatabase() {
+    try {
+        const currentUserData = await getCurrentTelegramUserData();
+        
+        if (currentUserData && currentUserData.username) {
+            console.log('Сохраняем текущего пользователя в базу:', currentUserData);
+            
+            const response = await fetch('/api/workers/add-telegram', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: currentUserData.username,
+                    telegram_id: currentUserData.id,
+                    first_name: currentUserData.first_name,
+                    last_name: currentUserData.last_name,
+                    source: 'auto_webapp_init'
+                })
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                console.log('Текущий пользователь успешно сохранён:', result);
+            } else {
+                console.warn('Ошибка при сохранении текущего пользователя:', result);
+            }
+        } else {
+            console.log('Не удалось получить данные текущего пользователя для сохранения');
+        }
+    } catch (error) {
+        console.error('Ошибка при автоматическом сохранении пользователя:', error);
+    }
+}
+
 async function initTelegramWebApp() {
     // Проверяем, запущено ли приложение в Telegram
     const isTelegramWebApp = window.Telegram && window.Telegram.WebApp;
@@ -410,6 +434,9 @@ async function initTelegramWebApp() {
             
             console.log('Telegram user initialized:', user);
             console.log('Is admin:', isAdmin);
+            
+            // Автоматически сохраняем текущего пользователя в базу данных
+            await saveCurrentUserToDatabase();
             
             // Получаем статистику и данные профитов
             await fetchProjectData();
@@ -1390,12 +1417,17 @@ function initModalHandlers() {
         });
     }
 
-    // Закрытие по Escape
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-            closeModal(modal);
-        }
-    });    // Добавляем современные эффекты к полям формы
+    // Добавляем обработчик Escape только один раз
+    if (!modal.hasEscapeHandler) {
+        const escapeHandler = (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('active')) {
+                closeModal(modal);
+            }
+        };
+        document.addEventListener('keydown', escapeHandler);
+        modal.hasEscapeHandler = true;
+        modal.escapeHandler = escapeHandler;
+    }    // Добавляем современные эффекты к полям формы
     const inputs = modal.querySelectorAll('input, select');
     inputs.forEach(input => {
         addModernInputEffects(input);
@@ -1832,6 +1864,12 @@ function openModal(modal) {
 
 // Функция для закрытия модального окна с разблокировкой фона
 function closeModal(modal) {
+    // Проверяем, не закрывается ли уже модальное окно
+    if (modal.isClosing) {
+        return;
+    }
+    modal.isClosing = true;
+    
     const container = modal.querySelector('.modal-container');
     
     // Добавляем анимацию закрытия
@@ -1864,6 +1902,9 @@ function closeModal(modal) {
         
         // Восстанавливаем позицию прокрутки
         window.scrollTo(0, scrollPosition);
+        
+        // Сбрасываем флаг закрытия
+        modal.isClosing = false;
     }, 300);
 }
 
@@ -2391,7 +2432,7 @@ function initializeNavigation() {
 
 function switchToSection(sectionName) {
     // Скрываем все разделы
-    const sections = document.querySelectorAll('#profits-section, #statistics-section, #workers-section');
+    const sections = document.querySelectorAll('#profits-section, #statistics-section, #workers-section, #admin-section');
     sections.forEach(section => {
         section.style.display = 'none';
     });
@@ -2443,6 +2484,8 @@ async function loadSectionData(sectionName) {
             await loadStatisticsData();
         } else if (sectionName === 'workers') {
             await loadWorkersData();
+        } else if (sectionName === 'admin') {
+            await loadAdminData();
         }
         // Для раздела profits данные уже загружаются в существующем коде
         
@@ -2613,12 +2656,13 @@ function displayWorkers(workers, profits = []) {
     if (!workersContainer) return;
     
     // Получаем статистику профитов для каждого воркера из полученных данных
-    const workerStats = getWorkerStatisticsFromProfits(profits);
+    const workerStats = getWorkerStatisticsFromProfits(profits, workers);
     
     const workersHtml = workers.map(worker => {
-        // Ищем статистику по username воркера
+        // Ищем статистику по имени воркера (приоритет) или username
+        const displayName = worker.display_name || worker.name || worker.username;
         const stats = workerStats[worker.username] || { count: 0, totalAmount: 0 };
-        const initials = getInitials(worker.name || worker.username);
+        const initials = getInitials(displayName);
         const status = worker.telegram_id && worker.telegram_id.trim() ? 'active' : 'inactive';
         const statusText = status === 'active' ? 'Активен' : 'Не в боте';
         
@@ -2628,7 +2672,7 @@ function displayWorkers(workers, profits = []) {
                 <div class="worker-header">
                     <div class="worker-avatar">${initials}</div>
                     <div class="worker-info">
-                        <h3>${worker.name || worker.username}</h3>
+                        <h3>${displayName}</h3>
                         <p>@${worker.username}</p>
                         ${worker.register_date ? `<small>Регистрация: ${new Date(worker.register_date).toLocaleDateString('ru-RU')}</small>` : ''}
                     </div>
@@ -2650,26 +2694,38 @@ function displayWorkers(workers, profits = []) {
     workersContainer.innerHTML = workersHtml;
 }
 
-function getWorkerStatisticsFromProfits(profits) {
+function getWorkerStatisticsFromProfits(profits, workers = []) {
+    // Создаём словарь для сопоставления имён и username
+    const nameToUsernameMap = {};
+    workers.forEach(worker => {
+        const displayName = worker.display_name || worker.name || worker.username;
+        nameToUsernameMap[displayName] = worker.username;
+        // Также добавляем сопоставление username -> username для обратной совместимости
+        nameToUsernameMap[worker.username] = worker.username;
+    });
+    
     // Собираем статистику из полученных профитов
     const workerStats = {};
     
     console.log('Processing profits for workers:', profits); // Отладка
+    console.log('Name to username mapping:', nameToUsernameMap); // Отладка
     
     profits.forEach(profit => {
-        // В API данных поле называется worker_name
-        const workerName = profit.worker_name || profit.worker || 'unknown';
+        // В API данных поле называется worker_name (теперь содержит имя или username)
+        const workerDisplayName = profit.worker_name || profit.worker || 'unknown';
         
-        // Убираем @ из имени воркера, если есть
-        const cleanWorkerName = workerName.replace('@', '');
+        // Находим username через сопоставление или используем как есть
+        const username = nameToUsernameMap[workerDisplayName] || 
+                        profit.worker_username || 
+                        workerDisplayName.replace('@', '');
         
-        console.log(`Processing profit: worker="${workerName}", clean="${cleanWorkerName}", amount=${profit.amount}`); // Отладка
+        console.log(`Processing profit: display="${workerDisplayName}", username="${username}", amount=${profit.amount}`); // Отладка
         
-        if (!workerStats[cleanWorkerName]) {
-            workerStats[cleanWorkerName] = { count: 0, totalAmount: 0 };
+        if (!workerStats[username]) {
+            workerStats[username] = { count: 0, totalAmount: 0 };
         }
-        workerStats[cleanWorkerName].count++;
-        workerStats[cleanWorkerName].totalAmount += (profit.amount || 0);
+        workerStats[username].count++;
+        workerStats[username].totalAmount += (profit.amount || 0);
     });
     
     console.log('Final worker statistics:', workerStats); // Для отладки
@@ -2719,3 +2775,545 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 console.log('🚀 Навигационная система инициализирована!');
+
+// ================= АДМИНИСТРИРОВАНИЕ =================
+
+// Управление вкладками администрирования
+document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация вкладок администрирования
+    const adminTabs = document.querySelectorAll('.admin-tab-btn');
+    const adminTabContents = document.querySelectorAll('.admin-tab-content');
+
+    adminTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabId = tab.getAttribute('data-tab');
+            
+            // Убираем активный класс со всех вкладок
+            adminTabs.forEach(t => t.classList.remove('active'));
+            adminTabContents.forEach(content => content.classList.remove('active'));
+            
+            // Добавляем активный класс текущей вкладке
+            tab.classList.add('active');
+            const targetContent = document.getElementById(tabId);
+            if (targetContent) {
+                targetContent.classList.add('active');
+                
+                // Загружаем данные для активной вкладки
+                loadAdminTabData(tabId);
+            }
+        });
+    });
+
+    // Обработчики кнопок обновления
+    document.getElementById('refresh-workers-admin')?.addEventListener('click', loadWorkersAdmin);
+    document.getElementById('refresh-profits-admin')?.addEventListener('click', loadProfitsAdmin);
+    
+    // Обработчик формы редактирования профита
+    document.getElementById('edit-profit-form')?.addEventListener('submit', handleEditProfitSubmit);
+});
+
+// Загрузка данных для вкладок администрирования
+function loadAdminTabData(tabId) {
+    switch(tabId) {
+        case 'workers-management':
+            loadWorkersAdmin();
+            break;
+        case 'profits-management':
+            loadProfitsAdmin();
+            break;
+        case 'system-stats':
+            loadSystemStats();
+            break;
+    }
+}
+
+// Загрузка воркеров для администрирования
+async function loadWorkersAdmin() {
+    try {
+        showLoading('workers-admin-table');
+        
+        const response = await fetch('/api/admin/workers');
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке воркеров');
+        }
+        
+        const workers = await response.json();
+        displayWorkersAdmin(workers);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки воркеров:', error);
+        showErrorInTable('workers-admin-table', 'Ошибка загрузки данных о воркерах');
+    }
+}
+
+// Отображение воркеров в таблице администрирования
+function displayWorkersAdmin(workers) {
+    const tableBody = document.getElementById('workers-admin-table');
+    
+    if (workers.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">Нет данных о воркерах</td></tr>';
+        return;
+    }
+    
+    const workersHTML = workers.map(worker => {
+        const displayName = worker.name && worker.name.trim() ? worker.name : worker.username;
+        const telegramId = worker.telegram_id || 'Не указан';
+        const profitsCount = worker.profits_count || 0;
+        const totalAmount = formatPrice(worker.total_amount || 0);
+        const avgAmount = formatPrice(worker.avg_amount || 0);
+        const lastProfit = worker.last_profit_date ? new Date(worker.last_profit_date).toLocaleDateString('ru-RU') : 'Никогда';
+        
+        return `
+            <tr>
+                <td><strong>${displayName}</strong><br><small>@${worker.username}</small></td>
+                <td><code>${telegramId}</code></td>
+                <td><span class="badge">${profitsCount}</span></td>
+                <td><strong>${totalAmount}</strong></td>
+                <td>${avgAmount}</td>
+                <td>${lastProfit}</td>
+                <td>
+                    <div class="table-actions">
+                        <button class="table-btn details" onclick="showWorkerDetails('${worker.username}')">
+                            <i class="fas fa-eye"></i> Детали
+                        </button>
+                        <button class="table-btn delete" onclick="confirmDeleteWorker('${worker.username}')">
+                            <i class="fas fa-trash"></i> Удалить
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    tableBody.innerHTML = workersHTML;
+}
+
+// Загрузка профитов для администрирования
+async function loadProfitsAdmin() {
+    try {
+        showLoading('profits-admin-table');
+        
+        const response = await fetch('/api/profits?limit=50');
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке профитов');
+        }
+        
+        const profits = await response.json();
+        displayProfitsAdmin(profits);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки профитов:', error);
+        showErrorInTable('profits-admin-table', 'Ошибка загрузки данных о профитах');
+    }
+}
+
+// Отображение профитов в таблице администрирования
+function displayProfitsAdmin(profits) {
+    const tableBody = document.getElementById('profits-admin-table');
+    
+    if (profits.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;">Нет данных о профитах</td></tr>';
+        return;
+    }
+    
+    const profitsHTML = profits.map(profit => {
+        const date = new Date(profit.date).toLocaleDateString('ru-RU');
+        const time = new Date(profit.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        
+        return `
+            <tr>
+                <td>#${profit.id}</td>
+                <td><strong>@${profit.worker_username}</strong></td>
+                <td><strong>${formatPrice(profit.amount)}</strong></td>
+                <td>${profit.service}</td>
+                <td>${profit.worker_percent}%</td>
+                <td>${date}<br><small>${time}</small></td>
+                <td>
+                    <div class="table-actions">
+                        <button class="table-btn edit" onclick="editProfit(${profit.id}, '${profit.worker_username}', ${profit.amount}, '${profit.service}', ${profit.worker_percent})">
+                            <i class="fas fa-edit"></i> Изменить
+                        </button>
+                        <button class="table-btn delete" onclick="confirmDeleteProfit(${profit.id})">
+                            <i class="fas fa-trash"></i> Удалить
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    tableBody.innerHTML = profitsHTML;
+}
+
+// Загрузка системной статистики
+async function loadSystemStats() {
+    try {
+        const response = await fetch('/api/admin/system/stats');
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке системной статистики');
+        }
+        
+        const data = await response.json();
+        displaySystemStats(data);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки системной статистики:', error);
+        document.getElementById('system-general-stats').innerHTML = '<p style="color: red;">Ошибка загрузки данных</p>';
+        document.getElementById('system-daily-stats').innerHTML = '<p style="color: red;">Ошибка загрузки данных</p>';
+        document.getElementById('system-services-stats').innerHTML = '<p style="color: red;">Ошибка загрузки данных</p>';
+    }
+}
+
+// Отображение системной статистики
+function displaySystemStats(data) {
+    // Общая статистика
+    const generalStats = data.total_stats;
+    const generalStatsHTML = `
+        <ul class="stats-list">
+            <li>
+                <span class="stats-label">Общая касса:</span>
+                <span class="stats-value">${formatPrice(generalStats.total_amount || 0)}</span>
+            </li>
+            <li>
+                <span class="stats-label">Всего профитов:</span>
+                <span class="stats-value">${generalStats.total_profits || 0}</span>
+            </li>
+            <li>
+                <span class="stats-label">Последнее обновление:</span>
+                <span class="stats-value">${generalStats.last_updated ? new Date(generalStats.last_updated).toLocaleString('ru-RU') : 'Неизвестно'}</span>
+            </li>
+        </ul>
+    `;
+    document.getElementById('system-general-stats').innerHTML = generalStatsHTML;
+    
+    // Статистика по дням
+    const dailyStats = data.daily_stats || [];
+    const dailyStatsHTML = dailyStats.length > 0 ? `
+        <ul class="stats-list">
+            ${dailyStats.slice(0, 10).map(day => `
+                <li>
+                    <span class="stats-label">${day.date}:</span>
+                    <span class="stats-value">${formatPrice(day.total_amount)} (${day.profits_count} профитов)</span>
+                </li>
+            `).join('')}
+        </ul>
+    ` : '<p>Нет данных за последние дни</p>';
+    document.getElementById('system-daily-stats').innerHTML = dailyStatsHTML;
+    
+    // Топ сервисов
+    const topServices = data.top_services || [];
+    const servicesStatsHTML = topServices.length > 0 ? `
+        <ul class="stats-list">
+            ${topServices.slice(0, 10).map(service => `
+                <li>
+                    <span class="stats-label">${service.service}:</span>
+                    <span class="stats-value">${formatPrice(service.total_amount)} (${service.profits_count} профитов)</span>
+                </li>
+            `).join('')}
+        </ul>
+    ` : '<p>Нет данных о сервисах</p>';
+    document.getElementById('system-services-stats').innerHTML = servicesStatsHTML;
+}
+
+// Показать детали воркера
+async function showWorkerDetails(username) {
+    try {
+        const response = await fetch(`/api/admin/workers/${username}/stats`);
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке деталей воркера');
+        }
+        
+        const data = await response.json();
+        
+        const modal = document.getElementById('worker-details-modal');
+        const title = document.getElementById('worker-details-title');
+        const content = document.getElementById('worker-details-content');
+        
+        title.textContent = `Детали воркера: ${data.worker_info.name || username}`;
+        
+        const workerInfo = data.worker_info;
+        const servicesStats = data.services_stats || {};
+        const recentProfits = data.recent_profits || [];
+        
+        const detailsHTML = `
+            <div class="worker-details-section">
+                <h4><i class="fas fa-user"></i> Основная информация</h4>
+                <div class="worker-info-grid">
+                    <div class="worker-info-item">
+                        <div class="worker-info-label">Username</div>
+                        <div class="worker-info-value">@${workerInfo.username}</div>
+                    </div>
+                    <div class="worker-info-item">
+                        <div class="worker-info-label">Имя</div>
+                        <div class="worker-info-value">${workerInfo.name || 'Не указано'}</div>
+                    </div>
+                    <div class="worker-info-item">
+                        <div class="worker-info-label">Telegram ID</div>
+                        <div class="worker-info-value">${workerInfo.telegram_id || 'Не указан'}</div>
+                    </div>
+                    <div class="worker-info-item">
+                        <div class="worker-info-label">Дата регистрации</div>
+                        <div class="worker-info-value">${workerInfo.register_date ? new Date(workerInfo.register_date).toLocaleDateString('ru-RU') : 'Неизвестно'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="worker-details-section">
+                <h4><i class="fas fa-chart-bar"></i> Статистика профитов</h4>
+                <div class="worker-info-grid">
+                    <div class="worker-info-item">
+                        <div class="worker-info-label">Всего профитов</div>
+                        <div class="worker-info-value">${data.profits_count}</div>
+                    </div>
+                    <div class="worker-info-item">
+                        <div class="worker-info-label">Общая сумма</div>
+                        <div class="worker-info-value">${formatPrice(data.total_amount)}</div>
+                    </div>
+                    <div class="worker-info-item">
+                        <div class="worker-info-label">Средний профит</div>
+                        <div class="worker-info-value">${formatPrice(data.avg_profit)}</div>
+                    </div>
+                </div>
+            </div>
+            
+            ${Object.keys(servicesStats).length > 0 ? `
+                <div class="worker-details-section">
+                    <h4><i class="fas fa-cogs"></i> Статистика по сервисам</h4>
+                    <ul class="stats-list">
+                        ${Object.entries(servicesStats).map(([service, stats]) => `
+                            <li>
+                                <span class="stats-label">${service}:</span>
+                                <span class="stats-value">${formatPrice(stats.total)} (${stats.count} профитов)</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+            
+            ${recentProfits.length > 0 ? `
+                <div class="worker-details-section">
+                    <h4><i class="fas fa-history"></i> Последние профиты</h4>
+                    <table class="worker-profits-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Сумма</th>
+                                <th>Сервис</th>
+                                <th>%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${recentProfits.map(profit => `
+                                <tr>
+                                    <td>${new Date(profit.date).toLocaleDateString('ru-RU')}</td>
+                                    <td><strong>${formatPrice(profit.amount)}</strong></td>
+                                    <td>${profit.service}</td>
+                                    <td>${profit.worker_percent}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            ` : ''}
+        `;
+        
+        content.innerHTML = detailsHTML;
+        modal.classList.add('show');
+        
+    } catch (error) {
+        console.error('Ошибка загрузки деталей воркера:', error);
+        alert('Ошибка загрузки данных о воркере');
+    }
+}
+
+// Редактирование профита
+function editProfit(id, worker, amount, service, percent) {
+    const modal = document.getElementById('edit-profit-modal');
+    
+    document.getElementById('edit-profit-id').value = id;
+    document.getElementById('edit-profit-amount').value = amount;
+    document.getElementById('edit-profit-service').value = service;
+    document.getElementById('edit-profit-percent').value = percent;
+    
+    modal.classList.add('show');
+}
+
+// Обработка формы редактирования профита
+async function handleEditProfitSubmit(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('edit-profit-id').value;
+    const amount = parseFloat(document.getElementById('edit-profit-amount').value);
+    const service = document.getElementById('edit-profit-service').value.trim();
+    const percent = parseFloat(document.getElementById('edit-profit-percent').value);
+    
+    if (!amount || amount <= 0) {
+        alert('Введите корректную сумму профита');
+        return;
+    }
+    
+    if (!service || service.length < 2) {
+        alert('Введите название сервиса (минимум 2 символа)');
+        return;
+    }
+    
+    if (!percent || percent < 0 || percent > 100) {
+        alert('Введите корректный процент (от 0 до 100)');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/admin/profits/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                amount: amount,
+                service: service,
+                worker_percent: percent
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Ошибка при обновлении профита');
+        }
+        
+        // Закрываем модальное окно
+        document.getElementById('edit-profit-modal').classList.remove('show');
+        
+        // Обновляем таблицу
+        loadProfitsAdmin();
+        
+        showNotification('Профит успешно обновлен', 'success');
+        
+    } catch (error) {
+        console.error('Ошибка обновления профита:', error);
+        alert('Ошибка при обновлении профита: ' + error.message);
+    }
+}
+
+// Подтверждение удаления воркера
+function confirmDeleteWorker(username) {
+    if (confirm(`Вы уверены, что хотите удалить воркера @${username}? Это действие также удалит все его профиты и не может быть отменено.`)) {
+        deleteWorker(username);
+    }
+}
+
+// Удаление воркера
+async function deleteWorker(username) {
+    try {
+        const response = await fetch(`/api/admin/workers/${username}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Ошибка при удалении воркера');
+        }
+        
+        const result = await response.json();
+        showNotification(`Воркер @${username} удален (удалено профитов: ${result.profits_deleted})`, 'success');
+        
+        // Обновляем таблицу
+        loadWorkersAdmin();
+        
+    } catch (error) {
+        console.error('Ошибка удаления воркера:', error);
+        alert('Ошибка при удалении воркера: ' + error.message);
+    }
+}
+
+// Подтверждение удаления профита
+function confirmDeleteProfit(id) {
+    if (confirm('Вы уверены, что хотите удалить этот профит? Это действие не может быть отменено.')) {
+        deleteProfit(id);
+    }
+}
+
+// Удаление профита
+async function deleteProfit(id) {
+    try {
+        const response = await fetch(`/api/admin/profits/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Ошибка при удалении профита');
+        }
+        
+        showNotification('Профит успешно удален', 'success');
+        
+        // Обновляем таблицу
+        loadProfitsAdmin();
+        
+    } catch (error) {
+        console.error('Ошибка удаления профита:', error);
+        alert('Ошибка при удалении профита: ' + error.message);
+    }
+}
+
+// Вспомогательные функции
+function showLoading(elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Загрузка...</td></tr>';
+    }
+}
+
+function showErrorInTable(elementId, message) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: red;"><i class="fas fa-exclamation-triangle"></i> ${message}</td></tr>`;
+    }
+}
+
+// Функция для показа уведомлений
+function showNotification(message, type = 'info') {
+    // Создаем элемент уведомления
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <div class="notification-content">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    // Добавляем стили
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Анимация появления
+    setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Удаление через 4 секунды
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 4000);
+}
+
+console.log('🔧 Система администрирования инициализирована!');
