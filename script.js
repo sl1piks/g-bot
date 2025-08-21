@@ -1,3 +1,115 @@
+// ===============================
+// СИСТЕМА ДЕТАЛЬНОГО ЛОГИРОВАНИЯ
+// ===============================
+
+// Глобальная система логирования всех действий пользователя
+const UserLogger = {
+    logs: [],
+    isEnabled: true,
+    maxLogs: 2000,
+    
+    // Основная функция логирования
+    log(action, details, level = 'info', data = null) {
+        if (!this.isEnabled) return;
+        
+        const timestamp = new Date().toISOString();
+        const logEntry = {
+            timestamp: timestamp,
+            action: action,
+            details: details,
+            level: level,
+            data: data,
+            url: window.location.href,
+            userAgent: navigator.userAgent,
+            sessionId: this.getSessionId()
+        };
+        
+        this.logs.push(logEntry);
+        
+        // Ограничиваем размер лога
+        if (this.logs.length > this.maxLogs) {
+            this.logs = this.logs.slice(-1000);
+        }
+        
+        // Выводим в консоль браузера
+        console.log(`[${level.toUpperCase()}] ${action}: ${details}`, data);
+        
+        // Отправляем важные события на сервер
+        if (level === 'error' || action.includes('ADMIN') || action.includes('DELETE')) {
+            this.sendToServer(logEntry);
+        }
+    },
+    
+    // Получение ID сессии
+    getSessionId() {
+        if (!this._sessionId) {
+            this._sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        return this._sessionId;
+    },
+    
+    // Отправка логов на сервер
+    async sendToServer(logEntry) {
+        try {
+            await fetch('http://127.0.0.1:5000/api/admin/logs/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(logEntry)
+            });
+        } catch (error) {
+            console.error('Ошибка отправки лога на сервер:', error);
+        }
+    },
+    
+    // Получение всех логов
+    getAllLogs() {
+        return this.logs;
+    },
+    
+    // Получение логов по уровню
+    getLogsByLevel(level) {
+        return this.logs.filter(log => log.level === level);
+    },
+    
+    // Очистка логов
+    clearLogs() {
+        this.logs = [];
+        this.log('SYSTEM', 'Локальные логи очищены', 'info');
+    }
+};
+
+// Перехват всех ошибок JavaScript
+window.addEventListener('error', function(event) {
+    UserLogger.log('JS_ERROR', event.message, 'error', {
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: event.error?.stack
+    });
+});
+
+// Перехват необработанных промисов
+window.addEventListener('unhandledrejection', function(event) {
+    UserLogger.log('UNHANDLED_PROMISE', event.reason, 'error', {
+        promise: event.promise
+    });
+});
+
+// Логирование загрузки страницы
+document.addEventListener('DOMContentLoaded', function() {
+    UserLogger.log('PAGE_LOAD', 'Страница загружена', 'info', {
+        loadTime: performance.now(),
+        url: window.location.href
+    });
+});
+
+// Логирование ухода с страницы
+window.addEventListener('beforeunload', function() {
+    UserLogger.log('PAGE_UNLOAD', 'Пользователь покидает страницу', 'info');
+});
+
 // Инициализация Telegram WebApp
 let tg = window.Telegram?.WebApp;
 let user = null;
@@ -2431,6 +2543,8 @@ function initializeNavigation() {
 }
 
 function switchToSection(sectionName) {
+    UserLogger.log('NAVIGATION', `Переход к разделу: ${sectionName}`, 'info');
+    
     // Скрываем все разделы
     const sections = document.querySelectorAll('#profits-section, #statistics-section, #workers-section, #admin-section');
     sections.forEach(section => {
@@ -2440,6 +2554,8 @@ function switchToSection(sectionName) {
     // Показываем нужный раздел
     const targetSection = document.getElementById(`${sectionName}-section`);
     if (targetSection) {
+        UserLogger.log('UI_CHANGE', `Показан раздел: ${sectionName}-section`, 'info');
+        
         targetSection.style.display = 'block';
         
         // Добавляем анимацию появления
@@ -2539,16 +2655,25 @@ function hideLoadingIndicator(sectionName) {
 // Загрузка данных статистики
 async function loadStatisticsData() {
     try {
+        UserLogger.log('API_REQUEST', 'Запрос данных статистики', 'info');
+        
         const response = await fetch('http://127.0.0.1:5000/api/data');
         const data = await response.json();
         
         if (response.ok) {
+            UserLogger.log('DATA_LOADED', `Статистика загружена: ${data.profits?.length} профитов, ${data.workers?.length} воркеров`, 'info', {
+                profitsCount: data.profits?.length,
+                workersCount: data.workers?.length,
+                totalAmount: data.total_amount
+            });
+            
             updateDetailedStatistics(data);
             updateServicesStatistics(data.profits);
         } else {
             throw new Error(data.error || 'Failed to load statistics');
         }
     } catch (error) {
+        UserLogger.log('API_ERROR', 'Ошибка загрузки статистики: ' + error.message, 'error', { error: error });
         console.error('Error loading statistics:', error);
         showNotification('Ошибка загрузки статистики: ' + error.message, 'error');
     }
@@ -2846,12 +2971,23 @@ function loadAdminTabData(tabId) {
     switch(tabId) {
         case 'workers-management':
             loadWorkersAdmin();
+            addLog('info', 'Загружена вкладка управления воркерами');
             break;
         case 'profits-management':
             loadProfitsAdmin();
+            addLog('info', 'Загружена вкладка управления профитами');
             break;
         case 'system-stats':
             loadSystemStats();
+            addLog('info', 'Загружена вкладка системной статистики');
+            break;
+        case 'database-view':
+            loadDatabaseSchema();
+            addLog('info', 'Загружена вкладка визуализации базы данных');
+            break;
+        case 'logs-console':
+            loadLogs();
+            addLog('info', 'Загружена консоль логов');
             break;
     }
 }
@@ -2861,7 +2997,7 @@ async function loadWorkersAdmin() {
     try {
         showLoading('workers-admin-table');
         
-        const response = await fetch('/api/admin/workers');
+        const response = await fetch('http://127.0.0.1:5000/api/admin/workers');
         if (!response.ok) {
             throw new Error('Ошибка при загрузке воркеров');
         }
@@ -2922,7 +3058,7 @@ async function loadProfitsAdmin() {
     try {
         showLoading('profits-admin-table');
         
-        const response = await fetch('/api/profits?limit=50');
+        const response = await fetch('http://127.0.0.1:5000/api/profits?limit=50');
         if (!response.ok) {
             throw new Error('Ошибка при загрузке профитов');
         }
@@ -2977,7 +3113,7 @@ function displayProfitsAdmin(profits) {
 // Загрузка системной статистики
 async function loadSystemStats() {
     try {
-        const response = await fetch('/api/admin/system/stats');
+        const response = await fetch('http://127.0.0.1:5000/api/admin/system/stats');
         if (!response.ok) {
             throw new Error('Ошибка при загрузке системной статистики');
         }
@@ -3192,7 +3328,7 @@ async function handleEditProfitSubmit(e) {
     }
     
     try {
-        const response = await fetch(`/api/admin/profits/${id}`, {
+        const response = await fetch(`http://127.0.0.1:5000/api/admin/profits/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -3233,7 +3369,7 @@ function confirmDeleteWorker(username) {
 // Удаление воркера
 async function deleteWorker(username) {
     try {
-        const response = await fetch(`/api/admin/workers/${username}`, {
+        const response = await fetch(`http://127.0.0.1:5000/api/admin/workers/${username}`, {
             method: 'DELETE'
         });
         
@@ -3264,7 +3400,7 @@ function confirmDeleteProfit(id) {
 // Удаление профита
 async function deleteProfit(id) {
     try {
-        const response = await fetch(`/api/admin/profits/${id}`, {
+        const response = await fetch(`http://127.0.0.1:5000/api/admin/profits/${id}`, {
             method: 'DELETE'
         });
         
@@ -3346,3 +3482,470 @@ function showNotification(message, type = 'info') {
 }
 
 console.log('🔧 Система администрирования инициализирована!');
+
+// ===============================
+// ВИЗУАЛИЗАЦИЯ БАЗЫ ДАННЫХ
+// ===============================
+
+// Загрузка схемы базы данных
+async function loadDatabaseSchema() {
+    try {
+        const response = await fetch('http://127.0.0.1:5000/api/admin/database/schema');
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке схемы БД');
+        }
+        
+        const schema = await response.json();
+        displayDatabaseSchema(schema);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки схемы БД:', error);
+        document.getElementById('db-schema-view').innerHTML = '<p style="color: red;">Ошибка загрузки схемы базы данных</p>';
+    }
+}
+
+// Отображение схемы базы данных
+function displayDatabaseSchema(schema) {
+    const container = document.getElementById('db-schema-view');
+    
+    if (!schema.tables || schema.tables.length === 0) {
+        container.innerHTML = '<p>Нет данных о таблицах</p>';
+        return;
+    }
+    
+    const tablesHTML = schema.tables.map(table => `
+        <div class="db-table-item">
+            <div class="db-table-name">
+                📊 ${table.name}
+            </div>
+            <div class="db-table-info">
+                <div class="db-info-item">
+                    <span class="db-info-value">${table.columns || 0}</span>
+                    <span class="db-info-label">Колонок</span>
+                </div>
+                <div class="db-info-item">
+                    <span class="db-info-value">${formatNumber(table.rows || 0)}</span>
+                    <span class="db-info-label">Записей</span>
+                </div>
+                <div class="db-info-item">
+                    <span class="db-info-value">${table.size || 'N/A'}</span>
+                    <span class="db-info-label">Размер</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = tablesHTML;
+    
+    // Также загружаем статистику таблиц
+    loadTableStats();
+}
+
+// Загрузка статистики таблиц
+async function loadTableStats() {
+    try {
+        const response = await fetch('http://127.0.0.1:5000/api/admin/database/stats');
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке статистики БД');
+        }
+        
+        const stats = await response.json();
+        displayTableStats(stats);
+        
+    } catch (error) {
+        console.error('Ошибка загрузки статистики БД:', error);
+        document.getElementById('db-table-stats').innerHTML = '<p style="color: red;">Ошибка загрузки статистики</p>';
+    }
+}
+
+// Отображение статистики таблиц
+function displayTableStats(stats) {
+    const container = document.getElementById('db-table-stats');
+    
+    const statsHTML = `
+        <div class="db-info-item">
+            <span class="db-info-value">${stats.total_tables || 0}</span>
+            <span class="db-info-label">Всего таблиц</span>
+        </div>
+        <div class="db-info-item">
+            <span class="db-info-value">${formatNumber(stats.total_records || 0)}</span>
+            <span class="db-info-label">Всего записей</span>
+        </div>
+        <div class="db-info-item">
+            <span class="db-info-value">${stats.database_size || 'N/A'}</span>
+            <span class="db-info-label">Размер БД</span>
+        </div>
+        <div class="db-info-item">
+            <span class="db-info-value">${stats.last_backup || 'Никогда'}</span>
+            <span class="db-info-label">Последний бэкап</span>
+        </div>
+    `;
+    
+    container.innerHTML = statsHTML;
+}
+
+// ===============================
+// КОНСОЛЬ ЛОГОВ
+// ===============================
+
+let logs = [];
+let filteredLogs = [];
+
+// Загрузка логов
+async function loadLogs() {
+    try {
+        UserLogger.log('API_REQUEST', 'Запрос логов системы', 'info');
+        addLog('info', 'Загрузка логов системы...');
+        
+        // Загружаем логи с сервера
+        const response = await fetch('http://127.0.0.1:5000/api/admin/logs?limit=200');
+        
+        if (response.ok) {
+            const data = await response.json();
+            const serverLogs = data.logs || [];
+            
+            // Объединяем серверные логи с локальными логами UserLogger
+            const localLogs = UserLogger.getAllLogs().map(log => ({
+                time: log.timestamp,
+                level: log.level,
+                message: `[CLIENT] ${log.action}: ${log.details}`,
+                source: 'client'
+            }));
+            
+            const combinedLogs = [
+                ...serverLogs.map(log => ({
+                    time: log.timestamp,
+                    level: log.level || 'info',
+                    message: `[SERVER] ${log.action_type}: ${log.details}`,
+                    source: 'server'
+                })),
+                ...localLogs
+            ];
+            
+            // Сортируем по времени
+            logs = combinedLogs.sort((a, b) => new Date(b.time) - new Date(a.time));
+            
+            UserLogger.log('DATA_LOADED', `Загружено логов: сервер=${serverLogs.length}, клиент=${localLogs.length}`, 'info');
+            
+            filterLogs();
+            updateLogsDisplay();
+            updateLogsInfo();
+            
+            addLog('success', `Загружено ${logs.length} записей логов`);
+        } else {
+            throw new Error('Ошибка при загрузке логов с сервера');
+        }
+        
+    } catch (error) {
+        UserLogger.log('API_ERROR', 'Ошибка загрузки логов: ' + error.message, 'error');
+        console.error('Ошибка загрузки логов:', error);
+        addLog('error', 'Ошибка при загрузке логов: ' + error.message);
+    }
+}
+
+// Получение системных логов (симуляция)
+async function getSystemLogs() {
+    return [
+        { time: new Date().toISOString(), level: 'info', message: 'Система администрирования запущена' },
+        { time: new Date(Date.now() - 60000).toISOString(), level: 'info', message: 'API сервер запущен на порту 5000' },
+        { time: new Date(Date.now() - 120000).toISOString(), level: 'success', message: 'База данных подключена успешно' },
+        { time: new Date(Date.now() - 180000).toISOString(), level: 'warning', message: 'Обнаружен воркер без Telegram ID' },
+        { time: new Date(Date.now() - 240000).toISOString(), level: 'info', message: 'Загрузка данных воркеров завершена' },
+        { time: new Date(Date.now() - 300000).toISOString(), level: 'error', message: 'Ошибка подключения к Telegram Bot API' }
+    ];
+}
+
+// Добавление нового лога
+function addLog(level, message) {
+    const logEntry = {
+        time: new Date().toISOString(),
+        level: level,
+        message: message
+    };
+    
+    logs.unshift(logEntry); // Добавляем в начало
+    
+    // Ограничиваем количество логов
+    if (logs.length > 1000) {
+        logs = logs.slice(0, 1000);
+    }
+    
+    filterLogs();
+    updateLogsDisplay();
+    updateLogsInfo();
+}
+
+// Фильтрация логов
+function filterLogs() {
+    const filterLevel = document.getElementById('log-level-filter')?.value || 'all';
+    
+    if (filterLevel === 'all') {
+        filteredLogs = [...logs];
+    } else {
+        filteredLogs = logs.filter(log => log.level === filterLevel);
+    }
+}
+
+// Обновление отображения логов
+function updateLogsDisplay() {
+    const container = document.getElementById('logs-content');
+    if (!container) return;
+    
+    if (filteredLogs.length === 0) {
+        container.innerHTML = '<div class="log-entry info"><span class="log-message">Нет логов для отображения</span></div>';
+        return;
+    }
+    
+    const logsHTML = filteredLogs.slice(0, 100).map(log => {
+        const timeFormatted = new Date(log.time).toLocaleString('ru-RU');
+        return `
+            <div class="log-entry">
+                <span class="log-time">${timeFormatted}</span>
+                <span class="log-level ${log.level}">${log.level.toUpperCase()}</span>
+                <span class="log-message">${log.message}</span>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = logsHTML;
+    
+    // Автоскролл к новому сообщению
+    container.scrollTop = 0;
+}
+
+// Обновление информации о логах
+function updateLogsInfo() {
+    const countElement = document.getElementById('logs-count');
+    const updateElement = document.getElementById('logs-last-update');
+    
+    if (countElement) {
+        countElement.textContent = `${filteredLogs.length} записей`;
+    }
+    
+    if (updateElement) {
+        updateElement.textContent = `Обновлено: ${new Date().toLocaleTimeString('ru-RU')}`;
+    }
+}
+
+// Очистка логов
+function clearLogs() {
+    if (confirm('Вы уверены, что хотите очистить все логи?')) {
+        logs = [];
+        filteredLogs = [];
+        updateLogsDisplay();
+        updateLogsInfo();
+        addLog('info', 'Логи очищены');
+    }
+}
+
+// ===============================
+// ОБРАБОТЧИКИ СОБЫТИЙ ДЛЯ НОВЫХ ВКЛАДОК
+// ===============================
+
+// Обработчики для кнопок базы данных
+document.getElementById('refresh-db-view')?.addEventListener('click', () => {
+    addLog('info', 'Обновление схемы базы данных...');
+    loadDatabaseSchema();
+});
+
+document.getElementById('export-db')?.addEventListener('click', () => {
+    addLog('info', 'Экспорт базы данных запущен...');
+    alert('Функция экспорта пока не реализована');
+});
+
+// Обработчики для консоли логов
+document.getElementById('refresh-logs')?.addEventListener('click', loadLogs);
+document.getElementById('clear-logs')?.addEventListener('click', clearLogs);
+document.getElementById('log-level-filter')?.addEventListener('change', () => {
+    filterLogs();
+    updateLogsDisplay();
+    addLog('info', `Фильтр логов изменен на: ${document.getElementById('log-level-filter').value}`);
+});
+
+// Обновляем функцию переключения вкладок админки для новых вкладок
+function switchAdminTab(tabName) {
+    // Убираем активный класс со всех вкладок и контента
+    document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-content').forEach(content => content.classList.remove('active'));
+    
+    // Добавляем активный класс к выбранной вкладке
+    document.querySelector(`[data-tab="${tabName}"]`)?.classList.add('active');
+    document.getElementById(tabName)?.classList.add('active');
+    
+    // Загружаем данные для выбранной вкладки
+    switch (tabName) {
+        case 'workers-management':
+            loadWorkersAdmin();
+            addLog('info', 'Открыта вкладка управления воркерами');
+            break;
+        case 'profits-management':
+            loadProfitsAdmin();
+            addLog('info', 'Открыта вкладка управления профитами');
+            break;
+        case 'system-stats':
+            loadSystemStats();
+            addLog('info', 'Открыта вкладка системной статистики');
+            break;
+        case 'database-view':
+            loadDatabaseSchema();
+            addLog('info', 'Открыта вкладка визуализации базы данных');
+            break;
+        case 'logs-console':
+            loadLogs();
+            addLog('info', 'Открыта консоль логов');
+            break;
+    }
+}
+
+console.log('🗄️ Визуализация БД и консоль логов инициализированы!');
+
+// ===============================
+// ГЛОБАЛЬНОЕ ЛОГИРОВАНИЕ ВСЕХ ДЕЙСТВИЙ
+// ===============================
+
+// Логирование всех кликов
+document.addEventListener('click', function(event) {
+    const target = event.target;
+    let logDetails = '';
+    
+    // Определяем тип элемента и формируем детали
+    if (target.tagName === 'BUTTON') {
+        logDetails = `Клик по кнопке: ${target.textContent?.trim() || target.className}`;
+    } else if (target.tagName === 'A') {
+        logDetails = `Клик по ссылке: ${target.textContent?.trim() || target.href}`;
+    } else if (target.classList.contains('nav-item')) {
+        logDetails = `Клик по навигации: ${target.textContent?.trim()}`;
+    } else if (target.closest('.modal')) {
+        logDetails = `Клик в модальном окне: ${target.textContent?.trim() || target.className}`;
+    } else if (target.closest('.admin-section')) {
+        logDetails = `Клик в админ-панели: ${target.textContent?.trim() || target.className}`;
+    } else if (target.textContent && target.textContent.trim()) {
+        logDetails = `Клик по элементу: ${target.textContent.trim().substring(0, 50)}`;
+    } else {
+        logDetails = `Клик по элементу: ${target.tagName}${target.className ? '.' + target.className : ''}`;
+    }
+    
+    UserLogger.log('USER_CLICK', logDetails, 'info', {
+        tagName: target.tagName,
+        className: target.className,
+        id: target.id,
+        coordinates: { x: event.clientX, y: event.clientY }
+    });
+});
+
+// Логирование скролла
+let scrollTimeout;
+window.addEventListener('scroll', function() {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+        UserLogger.log('USER_SCROLL', `Скролл до позиции: ${window.scrollY}px`, 'info', {
+            scrollY: window.scrollY,
+            scrollX: window.scrollX,
+            documentHeight: document.body.scrollHeight,
+            viewportHeight: window.innerHeight
+        });
+    }, 1000); // Логируем только после остановки скролла на секунду
+});
+
+// Логирование изменения размера окна
+window.addEventListener('resize', function() {
+    UserLogger.log('WINDOW_RESIZE', `Размер окна изменен: ${window.innerWidth}x${window.innerHeight}`, 'info', {
+        width: window.innerWidth,
+        height: window.innerHeight
+    });
+});
+
+// Логирование фокуса/потери фокуса окна
+window.addEventListener('focus', function() {
+    UserLogger.log('WINDOW_FOCUS', 'Окно получило фокус', 'info');
+});
+
+window.addEventListener('blur', function() {
+    UserLogger.log('WINDOW_BLUR', 'Окно потеряло фокус', 'info');
+});
+
+// Логирование изменений в формах
+document.addEventListener('input', function(event) {
+    const target = event.target;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+        UserLogger.log('FORM_INPUT', `Ввод в поле: ${target.name || target.id || target.className}`, 'info', {
+            fieldName: target.name,
+            fieldId: target.id,
+            fieldType: target.type,
+            valueLength: target.value?.length || 0
+        });
+    }
+});
+
+// Логирование отправки форм
+document.addEventListener('submit', function(event) {
+    const form = event.target;
+    UserLogger.log('FORM_SUBMIT', `Отправка формы: ${form.id || form.className}`, 'info', {
+        formId: form.id,
+        formClassName: form.className,
+        fieldsCount: form.elements.length
+    });
+});
+
+// Логирование копирования текста
+document.addEventListener('copy', function(event) {
+    const selection = window.getSelection().toString();
+    UserLogger.log('TEXT_COPY', `Скопирован текст: ${selection.substring(0, 100)}${selection.length > 100 ? '...' : ''}`, 'info', {
+        textLength: selection.length
+    });
+});
+
+// Логирование видимости страницы
+document.addEventListener('visibilitychange', function() {
+    const state = document.visibilityState;
+    UserLogger.log('PAGE_VISIBILITY', `Видимость страницы: ${state}`, 'info', {
+        visibilityState: state,
+        hidden: document.hidden
+    });
+});
+
+// Логирование сетевого статуса
+window.addEventListener('online', function() {
+    UserLogger.log('NETWORK_STATUS', 'Соединение восстановлено', 'success');
+});
+
+window.addEventListener('offline', function() {
+    UserLogger.log('NETWORK_STATUS', 'Соединение потеряно', 'warning');
+});
+
+// Периодическая отправка накопленных логов на сервер
+setInterval(function() {
+    const importantLogs = UserLogger.logs.filter(log => 
+        log.level === 'error' || 
+        log.action.includes('ADMIN') || 
+        log.action.includes('DELETE') || 
+        log.action.includes('API_ERROR')
+    );
+    
+    if (importantLogs.length > 0) {
+        UserLogger.log('SYSTEM', `Отправка ${importantLogs.length} важных логов на сервер`, 'info');
+        
+        importantLogs.forEach(log => {
+            UserLogger.sendToServer(log);
+        });
+    }
+}, 30000); // Каждые 30 секунд
+
+// Логирование производительности
+if (window.performance && window.performance.timing) {
+    window.addEventListener('load', function() {
+        setTimeout(() => {
+            const timing = window.performance.timing;
+            const loadTime = timing.loadEventEnd - timing.navigationStart;
+            const domReady = timing.domContentLoadedEventEnd - timing.navigationStart;
+            
+            UserLogger.log('PERFORMANCE', `Страница загружена за ${loadTime}мс (DOM готов за ${domReady}мс)`, 'info', {
+                loadTime: loadTime,
+                domReadyTime: domReady,
+                timing: timing
+            });
+        }, 1000);
+    });
+}
+
+console.log('📊 Система детального логирования пользователей активирована!');

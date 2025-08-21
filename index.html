@@ -334,6 +334,8 @@
                     <button class="admin-tab-btn active" data-tab="workers-management">👥 Управление воркерами</button>
                     <button class="admin-tab-btn" data-tab="profits-management">💰 Управление профитами</button>
                     <button class="admin-tab-btn" data-tab="system-stats">📊 Системная статистика</button>
+                    <button class="admin-tab-btn" data-tab="database-view">🗄️ База данных</button>
+                    <button class="admin-tab-btn" data-tab="logs-console">📋 Консоль логов</button>
                 </div>
             </div>
 
@@ -418,6 +420,73 @@
                         <h3>🏆 Топ сервисов</h3>
                         <div id="system-services-stats">
                             <!-- Будет заполнено через JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка визуализации базы данных -->
+            <div class="admin-tab-content" id="database-view">
+                <div class="admin-controls">
+                    <div class="control-group">
+                        <button class="btn-primary" id="refresh-db-view">
+                            <i class="fas fa-sync-alt"></i> Обновить схему
+                        </button>
+                        <button class="btn-secondary" id="export-db">
+                            <i class="fas fa-download"></i> Экспорт данных
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="database-visualization">
+                    <div class="db-tables-container">
+                        <h3>📊 Структура базы данных</h3>
+                        <div id="db-schema-view">
+                            <!-- Будет заполнено через JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <div class="db-stats-container">
+                        <h3>📈 Статистика таблиц</h3>
+                        <div id="db-table-stats">
+                            <!-- Будет заполнено через JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка консоли логов -->
+            <div class="admin-tab-content" id="logs-console">
+                <div class="admin-controls">
+                    <div class="control-group">
+                        <button class="btn-primary" id="refresh-logs">
+                            <i class="fas fa-sync-alt"></i> Обновить логи
+                        </button>
+                        <button class="btn-secondary" id="clear-logs">
+                            <i class="fas fa-trash"></i> Очистить логи
+                        </button>
+                        <select id="log-level-filter">
+                            <option value="all">Все уровни</option>
+                            <option value="info">Info</option>
+                            <option value="warning">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="logs-container">
+                    <div class="logs-header">
+                        <h3>📋 Логи системы</h3>
+                        <div class="logs-info">
+                            <span id="logs-count">0 записей</span>
+                            <span id="logs-last-update">Обновлено: никогда</span>
+                        </div>
+                    </div>
+                    <div class="logs-content" id="logs-content">
+                        <div class="log-entry info">
+                            <span class="log-time">2025-08-21 16:30:00</span>
+                            <span class="log-level info">INFO</span>
+                            <span class="log-message">Система администрирования запущена</span>
                         </div>
                     </div>
                 </div>
