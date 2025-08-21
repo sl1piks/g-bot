@@ -2766,6 +2766,35 @@ function getInitials(name) {
     return words.slice(0, 2).map(word => word[0]).join('').toUpperCase();
 }
 
+// Функция загрузки данных администрирования
+async function loadAdminData() {
+    try {
+        console.log('Loading admin data...');
+        
+        // По умолчанию загружаем данные воркеров
+        await loadWorkersAdmin();
+        
+        // Активируем первую вкладку (Управление воркерами)
+        const firstTab = document.querySelector('.admin-tab');
+        const firstContent = document.querySelector('.admin-tab-content');
+        
+        if (firstTab && firstContent) {
+            // Удаляем активные классы у всех вкладок
+            document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.admin-tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Активируем первую вкладку
+            firstTab.classList.add('active');
+            firstContent.classList.add('active');
+        }
+        
+        console.log('Admin data loaded successfully');
+    } catch (error) {
+        console.error('Error loading admin data:', error);
+        showNotification('Ошибка загрузки данных администрирования: ' + error.message, 'error');
+    }
+}
+
 // Инициализируем навигацию на главном разделе
 document.addEventListener('DOMContentLoaded', function() {
     // По умолчанию показываем раздел профитов
