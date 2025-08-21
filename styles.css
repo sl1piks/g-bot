@@ -1410,6 +1410,37 @@ body.modal-open .modal-overlay {
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23408d3d'%3E%3Cpath d='M8 6L3 12h10z'/%3E%3C/svg%3E");
 }
 
+/* Стили для select с классом form-select */
+.form-select {
+    padding: 10px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    color: #333;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23666'%3E%3Cpath d='M8 12L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 40px;
+    min-width: 150px;
+}
+
+.form-select:hover {
+    border-color: var(--color-primary-light);
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2353c565'%3E%3Cpath d='M8 12L3 6h10z'/%3E%3C/svg%3E");
+    transform: translateY(-1px);
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(83, 197, 101, 0.1);
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23408d3d'%3E%3Cpath d='M8 6L3 12h10z'/%3E%3C/svg%3E");
+}
+
 /* Стили для подсказок */
 .input-hint {
     display: block;

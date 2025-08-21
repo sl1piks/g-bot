@@ -2758,15 +2758,15 @@ async function loadWorkersData() {
     try {
         // Загружаем данные о воркерах и профитах параллельно
         const [workersResponse, profitsResponse] = await Promise.all([
-            fetch('http://127.0.0.1:5000/api/workers'),
-            fetch('http://127.0.0.1:5000/api/profits')
+            fetch('http://127.0.0.1:5000/api/admin/workers'),
+            fetch('http://127.0.0.1:5000/api/admin/profits')
         ]);
         
         const workersData = await workersResponse.json();
         const profitsData = await profitsResponse.json();
         
         if (workersResponse.ok && profitsResponse.ok) {
-            displayWorkers(workersData.workers, profitsData.profits);
+            displayWorkers(workersData, profitsData.profits || profitsData);
         } else {
             throw new Error(workersData.error || profitsData.error || 'Failed to load workers');
         }
@@ -3058,13 +3058,13 @@ async function loadProfitsAdmin() {
     try {
         showLoading('profits-admin-table');
         
-        const response = await fetch('http://127.0.0.1:5000/api/profits?limit=50');
+        const response = await fetch('http://127.0.0.1:5000/api/admin/profits?limit=50');
         if (!response.ok) {
             throw new Error('Ошибка при загрузке профитов');
         }
         
-        const profits = await response.json();
-        displayProfitsAdmin(profits);
+        const data = await response.json();
+        displayProfitsAdmin(data.profits || data);
         
     } catch (error) {
         console.error('Ошибка загрузки профитов:', error);
